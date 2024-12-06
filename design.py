@@ -9,11 +9,6 @@ BLACK = (0, 0, 0)
 DARK_BLUE = (0, 0, 139)  # Тёмно-синий
 CYAN = (0, 255, 255)      # Циановый
 
-# Новые цвета для кнопок
-BUTTON_BORDER_COLOR = DARK_BLUE       # Тёмно-синий
-BUTTON_FILL_COLOR = BLACK             # Чёрный
-BUTTON_TEXT_COLOR = CYAN              # Циановый
-
 # Цвета для интерфейсов
 COLOR_BATTLE_BG = (0, 0, 0)            # Чёрный
 COLOR_BATTLE_ACCENT = DARK_BLUE        # Тёмно-синий
@@ -24,9 +19,9 @@ COLOR_MENU_BG = (0, 0, 0)
 COLOR_MENU_ACCENT = DARK_BLUE          # Тёмно-синий
 COLOR_MENU_TEXT = WHITE                # Белый
 
-COLOR_VICTORY_BG = (0, 255, 0)         # Зелёный
-COLOR_VICTORY_TEXT = (0, 0, 0)         # Чёрный
-COLOR_DEFEAT_TEXT = (255, 0, 0)        # Красный
+COLOR_VICTORY_BG = (0, 255, 0)
+COLOR_VICTORY_TEXT = (0, 0, 0)
+COLOR_DEFEAT_TEXT = (255, 0, 0)
 
 TK_COLOR_MENU_BG = "#000000"
 TK_COLOR_MENU_ACCENT = "#0000FF"        # Тёмно-синий
@@ -67,6 +62,15 @@ color_schemes = {
         "TK_COLOR_MENU_BG": "#000000",
         "TK_COLOR_MENU_ACCENT": "#00008B",  # Тёмно-синий
         "TK_COLOR_MENU_TEXT": "#FFFFFF",
+
+        # Новые цвета для кнопок
+        "BUTTON_BORDER_COLOR_PYGAME": (0, 0, 139),       # Тёмно-синий
+        "BUTTON_FILL_COLOR_PYGAME": (0, 0, 0),           # Чёрный
+        "BUTTON_TEXT_COLOR_PYGAME": (0, 255, 255),       # Циановый
+
+        "BUTTON_BORDER_COLOR_TK": "#00008B",              # Тёмно-синий
+        "BUTTON_FILL_COLOR_TK": "#000000",                # Чёрный
+        "BUTTON_TEXT_COLOR_TK": "#00FFFF",                # Циановый
     },
     "scheme2": {
         # Цвета схемы 2
@@ -86,10 +90,18 @@ color_schemes = {
         "TK_COLOR_MENU_BG": "#000000",
         "TK_COLOR_MENU_ACCENT": "#FFA500",  # Оранжевый
         "TK_COLOR_MENU_TEXT": "#FFFFFF",
+
+        # Новые цвета для кнопок
+        "BUTTON_BORDER_COLOR_PYGAME": (255, 165, 0),       # Оранжевый
+        "BUTTON_FILL_COLOR_PYGAME": (0, 0, 0),             # Чёрный
+        "BUTTON_TEXT_COLOR_PYGAME": (255, 255, 255),       # Белый
+
+        "BUTTON_BORDER_COLOR_TK": "#FFA500",                # Оранжевый
+        "BUTTON_FILL_COLOR_TK": "#000000",                  # Чёрный
+        "BUTTON_TEXT_COLOR_TK": "#FFFFFF",                  # Белый
     },
     "scheme3": {
-        # Добавьте цвета для схемы 3 здесь
-        # Пример:
+        # Цвета схемы 3
         "COLOR_BATTLE_BG": (0, 0, 0),
         "COLOR_BATTLE_ACCENT": (0, 0, 139),     # Тёмно-синий
         "COLOR_BATTLE_TEXT": (255, 255, 255),   # Белый
@@ -106,6 +118,15 @@ color_schemes = {
         "TK_COLOR_MENU_BG": "#000000",
         "TK_COLOR_MENU_ACCENT": "#00008B",  # Тёмно-синий
         "TK_COLOR_MENU_TEXT": "#FFFFFF",
+
+        # Новые цвета для кнопок
+        "BUTTON_BORDER_COLOR_PYGAME": (0, 0, 139),       # Тёмно-синий
+        "BUTTON_FILL_COLOR_PYGAME": (0, 0, 0),           # Чёрный
+        "BUTTON_TEXT_COLOR_PYGAME": (0, 255, 255),       # Циановый
+
+        "BUTTON_BORDER_COLOR_TK": "#00008B",              # Тёмно-синий
+        "BUTTON_FILL_COLOR_TK": "#000000",                # Чёрный
+        "BUTTON_TEXT_COLOR_TK": "#00FFFF",                # Циановый
     },
 }
 
@@ -130,10 +151,14 @@ TK_COLOR_MENU_BG = None
 TK_COLOR_MENU_ACCENT = None
 TK_COLOR_MENU_TEXT = None
 
-# Новые цвета для кнопок
-BUTTON_BORDER_COLOR = DARK_BLUE       # Тёмно-синий
-BUTTON_FILL_COLOR = BLACK             # Чёрный
-BUTTON_TEXT_COLOR = CYAN              # Циановый
+# Новые цвета для кнопок разделены на Pygame и Tkinter
+BUTTON_BORDER_COLOR_PYGAME = None
+BUTTON_FILL_COLOR_PYGAME = None
+BUTTON_TEXT_COLOR_PYGAME = None
+
+BUTTON_BORDER_COLOR_TK = None
+BUTTON_FILL_COLOR_TK = None
+BUTTON_TEXT_COLOR_TK = None
 
 # Функция для установки цветовой схемы
 def set_color_scheme(scheme_name):
@@ -141,6 +166,8 @@ def set_color_scheme(scheme_name):
     global COLOR_MENU_BG, COLOR_MENU_ACCENT, COLOR_MENU_TEXT
     global COLOR_VICTORY_BG, COLOR_VICTORY_TEXT, COLOR_DEFEAT_TEXT
     global TK_COLOR_MENU_BG, TK_COLOR_MENU_ACCENT, TK_COLOR_MENU_TEXT
+    global BUTTON_BORDER_COLOR_PYGAME, BUTTON_FILL_COLOR_PYGAME, BUTTON_TEXT_COLOR_PYGAME
+    global BUTTON_BORDER_COLOR_TK, BUTTON_FILL_COLOR_TK, BUTTON_TEXT_COLOR_TK
 
     scheme = color_schemes.get(scheme_name, color_schemes["scheme1"])
 
@@ -160,6 +187,14 @@ def set_color_scheme(scheme_name):
     TK_COLOR_MENU_BG = scheme["TK_COLOR_MENU_BG"]
     TK_COLOR_MENU_ACCENT = scheme["TK_COLOR_MENU_ACCENT"]
     TK_COLOR_MENU_TEXT = scheme["TK_COLOR_MENU_TEXT"]
+
+    BUTTON_BORDER_COLOR_PYGAME = scheme["BUTTON_BORDER_COLOR_PYGAME"]
+    BUTTON_FILL_COLOR_PYGAME = scheme["BUTTON_FILL_COLOR_PYGAME"]
+    BUTTON_TEXT_COLOR_PYGAME = scheme["BUTTON_TEXT_COLOR_PYGAME"]
+
+    BUTTON_BORDER_COLOR_TK = scheme["BUTTON_BORDER_COLOR_TK"]
+    BUTTON_FILL_COLOR_TK = scheme["BUTTON_FILL_COLOR_TK"]
+    BUTTON_TEXT_COLOR_TK = scheme["BUTTON_TEXT_COLOR_TK"]
 
 # Применение текущей цветовой схемы
 set_color_scheme(current_scheme)

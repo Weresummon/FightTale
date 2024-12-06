@@ -3,42 +3,72 @@
 import pygame
 import random
 import math
+import design  # Используем полный импорт для доступа к цветам
+
 from design import (
     FONT_GAME,
     COLOR_BATTLE_BG, COLOR_BATTLE_ACCENT, COLOR_BATTLE_TEXT,
     COLOR_HEALTH_BAR,
     COLOR_VICTORY_BG, COLOR_VICTORY_TEXT, COLOR_DEFEAT_TEXT,
-    BUTTON_BORDER_COLOR, BUTTON_FILL_COLOR, BUTTON_TEXT_COLOR
+    BUTTON_BORDER_COLOR_PYGAME, BUTTON_FILL_COLOR_PYGAME, BUTTON_TEXT_COLOR_PYGAME
 )
 
 # Константы
 FIELD_WIDTH, FIELD_HEIGHT = 400, 300
 FIELD_X, FIELD_Y = 200, 150
-WINDOW_WIDTH, WINDOW_HEIGHT = 800, 600
+WINDOW_WIDTH, WINDOW_HEIGHT = 800, 600  # Начальные размеры окна
 RED = (255, 0, 0)
 WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
 
 class Monster:
-    def __init__(self, name, health):
+    def __init__(self, name, health, shape):
         self.name = name
         self.health = health
         self.max_health = health
+        self.shape = shape  # Матрица для отрисовки монстра
 
     def attack(self):
         # To be overridden by subclasses
         return [], []
 
 class DummyMonster(Monster):
-    def __init__(self, name="Dummy", health=100):
-        super().__init__(name, health)
+    def __init__(self, name="Dummy", health=100, shape=None):
+        if shape is None:
+            shape = [
+                "0001100000",
+                "0011110000",
+                "0111111000",
+                "1111111100",
+                "1111111100",
+                "0111111000",
+                "0011110000",
+                "0001100000",
+                "0000000000",
+                "0000000000"
+            ]
+        super().__init__(name, health, shape)
 
     def attack(self):
         bullets, beams = generate_bullets(), generate_beams()
         return bullets, beams
 
 class GoblinMonster(Monster):
-    def __init__(self, name="Goblin", health=80):
-        super().__init__(name, health)
+    def __init__(self, name="Goblin", health=80, shape=None):
+        if shape is None:
+            shape = [
+                "0000000000",
+                "0001100000",
+                "0011110000",
+                "0111111000",
+                "1111111100",
+                "1111111100",
+                "0111111000",
+                "0011110000",
+                "0001100000",
+                "0000000000"
+            ]
+        super().__init__(name, health, shape)
 
     def attack(self):
         bullets = []
@@ -52,7 +82,7 @@ def start_battle(screen, user, monster):
 
     player_name = user['name']
     player_health = user['health']
-    player_max_health = user['health']
+    player_max_health = user['max_health']
     monster_name = monster.name
     monster_health = monster.health
     monster_max_health = monster.health
@@ -75,6 +105,24 @@ def start_battle(screen, user, monster):
     shake_intensity = 0
     shake_offset = [0, 0]
 
+    # Дополнительные параметры аккаунта
+    feature = user.get('feature', '')
+    shield_active = user.get('shield_active', False)  # Для аккаунта 2
+    shield_turns = 0
+    speed_multiplier = user.get('speed_multiplier', 1)  # Для аккаунта 3
+    acceleration = user.get('acceleration', 1)
+
+    # Инвентарь
+    inventory = {
+        "пирог": 2,
+        "сэндвич": 4,
+        "энергетик": 1
+    }
+
+    # Поддержка для кнопки spare
+    support_count = 0
+    can_spare = False
+
     running = True
     while running:
         current_time = pygame.time.get_ticks()
@@ -87,23 +135,74 @@ def start_battle(screen, user, monster):
 
             if event.type == pygame.MOUSEBUTTONDOWN and player_turn:
                 pos = pygame.mouse.get_pos()
-                # Предполагается, что кнопка "Fight" находится в определённой области
-                # Настройте координаты в зависимости от позиции кнопки
-                # Например, кнопка "Fight" имеет прямоугольник (50, 500, 100, 40)
-                if 50 <= pos[0] <= 150 and 500 <= pos[1] <= 540:  # Кнопка "Fight"
-                    # Запускаем мини-игру атаки
-                    damage = attack_minigame(screen)
-                    monster.health -= damage
-                    monster_health = monster.health
-                    print(f"Монстр получил урон {damage}, осталось {monster_health} HP!")
-                    player_turn = False
-                    last_turn_time = pygame.time.get_ticks()
-                    monster_attack_count = 0  # Сбрасываем счётчик атак при начале хода монстра
+                # Определяем области кнопок
+                buttons = {
+                    "Fight": pygame.Rect(int(WINDOW_WIDTH * 0.0625), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667)),
+                    "Act": pygame.Rect(int(WINDOW_WIDTH * 0.25), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667)),
+                    "Item": pygame.Rect(int(WINDOW_WIDTH * 0.4375), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667)),
+                    "Mercy": pygame.Rect(int(WINDOW_WIDTH * 0.625), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667))
+                }
 
-                    # Тряска окна при получении урона монстром
-                    if damage > 0:
-                        shake_duration = 300  # Миллисекунды
-                        shake_intensity = min(damage, 20)  # Ограничиваем интенсивность
+                for button_name, button_rect in buttons.items():
+                    if button_rect.collidepoint(pos):
+                        if button_name == "Fight":
+                            # Запускаем мини-игру атаки
+                            damage = attack_minigame(screen)
+                            if feature == "душа смелости":
+                                damage *= 2  # Увеличенный урон
+                                acceleration += 1  # Увеличение ускорения
+                                user['acceleration'] = acceleration
+                            monster.health -= damage
+                            monster_health = monster.health
+                            print(f"Монстр получил урон {damage}, осталось {monster_health} HP!")
+                            player_turn = False
+                            last_turn_time = pygame.time.get_ticks()
+                            monster_attack_count = 0  # Сбрасываем счётчик атак монстра
+
+                            # Тряска окна при получении урона монстром
+                            if damage > 0:
+                                shake_duration = 300  # Миллисекунды
+                                shake_intensity = min(damage, 20)  # Ограничиваем интенсивность
+
+                            # Обновляем player_health после атаки
+                            player_health = user['health']
+
+                        elif button_name == "Act":
+                            # Открываем подменю Act: Насмешка или Поддержка
+                            act_choice = act_menu(screen)
+                            if act_choice == "насмешка":
+                                weaken_enemy(monster)
+                                print("Вы насмешили монстра, его атаки ослаблены!")
+                            elif act_choice == "поддержка":
+                                support_count += 1
+                                print("Вы поддержали монстра.")
+                                if support_count >= 10:
+                                    can_spare = True
+                            player_turn = False
+                            last_turn_time = pygame.time.get_ticks()
+                            monster_attack_count = 0
+
+                            # Обновляем player_health после акта
+                            player_health = user['health']
+
+                        elif button_name == "Item":
+                            # Открываем инвентарь
+                            item_used = item_menu(screen, inventory)
+                            if item_used:
+                                use_item(item_used, inventory, user)
+                                # Обновляем player_health после использования предмета
+                                player_health = user['health']
+                            player_turn = False
+                            last_turn_time = pygame.time.get_ticks()
+                            monster_attack_count = 0
+
+                        elif button_name == "Mercy":
+                            if can_spare:
+                                # Завершение боя победой без убийства
+                                print("Вы пощадили монстра. Победа!")
+                                show_end_screen(screen, "You Spare the Monster!")
+                                return
+                        break  # После обработки кнопки выходим из цикла
 
         if not player_turn:
             if current_time - last_turn_time >= turn_timer and not bullets and not beams:
@@ -118,16 +217,26 @@ def start_battle(screen, user, monster):
                     last_turn_time = pygame.time.get_ticks()
                     print("Ход переходит к игроку.")
 
+                    # Сбрасываем ускорение для аккаунта 3
+                    if feature == "душа смелости":
+                        acceleration = 1
+                        user['acceleration'] = acceleration
+                        print("Ускорение сброшено до 1.")
+
             # Обработка движения души игрока
             keys = pygame.key.get_pressed()
+            speed = 2.5 * speed_multiplier
+            if feature == "душа смелости":
+                speed *= acceleration
+
             if keys[pygame.K_UP] and soul_pos[1] > FIELD_Y:
-                soul_pos[1] -= 2.5
+                soul_pos[1] -= speed
             if keys[pygame.K_DOWN] and soul_pos[1] < FIELD_Y + FIELD_HEIGHT - 20:
-                soul_pos[1] += 2.5
+                soul_pos[1] += speed
             if keys[pygame.K_LEFT] and soul_pos[0] > FIELD_X:
-                soul_pos[0] -= 2.5
+                soul_pos[0] -= speed
             if keys[pygame.K_RIGHT] and soul_pos[0] < FIELD_X + FIELD_WIDTH - 20:
-                soul_pos[0] += 2.5
+                soul_pos[0] += speed
 
         # Обновление тряски
         if shake_duration > 0:
@@ -142,17 +251,17 @@ def start_battle(screen, user, monster):
 
         # Создаём временную поверхность для тряски
         temp_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-        temp_surface.fill(COLOR_BATTLE_BG)
+        temp_surface.fill(design.COLOR_BATTLE_BG)
 
         # Рисуем UI и все элементы на временной поверхности
         draw_ui(temp_surface, monster_health, monster_max_health, player_health, player_max_health)
-        player_name_text = FONT_GAME.render(f"Player: {player_name}", True, COLOR_BATTLE_TEXT)
+        player_name_text = design.FONT_GAME.render(f"Player: {player_name}", True, design.COLOR_BATTLE_TEXT)
         temp_surface.blit(player_name_text, (20, 100))
 
         # Отрисовка атак монстра
         if not player_turn:
             if bullets:
-                player_health, shake = handle_monster_turn(temp_surface, soul_pos, bullets, player_health, current_time, invulnerable_until)
+                player_health, shake = handle_monster_turn(temp_surface, soul_pos, bullets, player_health, current_time, invulnerable_until, feature)
                 user['health'] = player_health
                 if shake:
                     shake_duration = 200
@@ -166,9 +275,12 @@ def start_battle(screen, user, monster):
 
         # Отрисовка игрового поля и души игрока
         if player_turn:
-            draw_buttons(temp_surface)
+            draw_buttons(temp_surface, can_spare)
         else:
             draw_game_field(temp_surface, soul_pos, current_time, invulnerable_until)
+
+        # Отрисовка монстра над полем боя
+        draw_monster(temp_surface, monster.shape, FIELD_X + FIELD_WIDTH // 2, FIELD_Y - 100)
 
         # Проверка конца игры
         if player_health <= 0:
@@ -186,14 +298,14 @@ def start_battle(screen, user, monster):
 def draw_ui(screen, monster_health, monster_max_health, player_health, player_max_health):
     # Отрисовка полосок здоровья
     # Полоска здоровья монстра
-    draw_health_bar(screen, 20, 20, 200, 20, monster_health, monster_max_health, COLOR_HEALTH_BAR, (100, 100, 100))
+    draw_health_bar(screen, 20, 20, 200, 20, monster_health, monster_max_health, design.COLOR_HEALTH_BAR, (100, 100, 100))
     # Полоска здоровья игрока
-    draw_health_bar(screen, 20, 60, 200, 20, player_health, player_max_health, COLOR_HEALTH_BAR, (100, 100, 100))
+    draw_health_bar(screen, 20, 60, 200, 20, player_health, player_max_health, design.COLOR_HEALTH_BAR, (100, 100, 100))
 
     # Подписи к полоскам
-    font = FONT_GAME
-    monster_text = font.render("Monster HP", True, COLOR_BATTLE_TEXT)
-    player_text = font.render("Player HP", True, COLOR_BATTLE_TEXT)
+    font = design.FONT_GAME
+    monster_text = font.render("Monster HP", True, design.COLOR_BATTLE_TEXT)
+    player_text = font.render("Player HP", True, design.COLOR_BATTLE_TEXT)
     screen.blit(monster_text, (230, 15))
     screen.blit(player_text, (230, 55))
 
@@ -206,23 +318,33 @@ def draw_health_bar(screen, x, y, width, height, current_health, max_health, bar
     # Отрисовка заполненной части
     pygame.draw.rect(screen, bar_color, (x, y, fill_width, height))
 
-def draw_buttons(screen):
-    font = FONT_GAME
-    buttons = ["Fight", "Act", "Item", "Mercy"]
-    for idx, button in enumerate(buttons):
-        button_rect = pygame.Rect(50 + idx * 150, 500, 100, 40)
+def draw_buttons(screen, can_spare):
+    font = design.FONT_GAME
+    buttons = {
+        "Fight": pygame.Rect(int(WINDOW_WIDTH * 0.0625), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667)),
+        "Act": pygame.Rect(int(WINDOW_WIDTH * 0.25), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667)),
+        "Item": pygame.Rect(int(WINDOW_WIDTH * 0.4375), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667)),
+        "Mercy": pygame.Rect(int(WINDOW_WIDTH * 0.625), int(WINDOW_HEIGHT * 0.8333), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0667))
+    }
+
+    for button_name, button_rect in buttons.items():
         # Обводка кнопки
-        pygame.draw.rect(screen, BUTTON_BORDER_COLOR, button_rect, 2)  # Толщина линии 2
+        pygame.draw.rect(screen, design.BUTTON_BORDER_COLOR_PYGAME, button_rect, 2)  # Толщина линии 2
         # Заполнение кнопки
-        pygame.draw.rect(screen, BUTTON_FILL_COLOR, button_rect.inflate(-4, -4))  # Уменьшаем размер для обводки
+        pygame.draw.rect(screen, design.BUTTON_FILL_COLOR_PYGAME, button_rect.inflate(-4, -4))  # Уменьшаем размер для обводки
         # Текст кнопки
-        button_text = font.render(button, True, BUTTON_TEXT_COLOR)
+        button_text = font.render(button_name, True, design.BUTTON_TEXT_COLOR_PYGAME)
         text_rect = button_text.get_rect(center=button_rect.center)
         screen.blit(button_text, text_rect)
 
+    # Если можно спарить, добавляем яркую границу вокруг кнопки Mercy
+    if can_spare:
+        mercy_rect = buttons["Mercy"]
+        pygame.draw.rect(screen, (255, 255, 0), mercy_rect, 4)  # Жёлтая граница
+
 def draw_game_field(screen, soul_pos, current_time, invulnerable_until):
     # Отрисовка игрового поля
-    pygame.draw.rect(screen, COLOR_BATTLE_ACCENT, (FIELD_X, FIELD_Y, FIELD_WIDTH, FIELD_HEIGHT), 2)
+    pygame.draw.rect(screen, design.COLOR_BATTLE_ACCENT, (FIELD_X, FIELD_Y, FIELD_WIDTH, FIELD_HEIGHT), 2)
 
     # Определение цвета души
     if current_time < invulnerable_until:
@@ -272,7 +394,7 @@ def draw_pixel_heart(surface, color, center, size):
                     (center[0] + (x - 5) * pixel_size, center[1] + y * pixel_size, pixel_size, pixel_size)
                 )
 
-def handle_monster_turn(screen, soul_pos, bullets, player_hp, current_time, invulnerable_until):
+def handle_monster_turn(screen, soul_pos, bullets, player_hp, current_time, invulnerable_until, feature):
     new_bullets = []
     shake = False
     for bullet in bullets:
@@ -281,7 +403,11 @@ def handle_monster_turn(screen, soul_pos, bullets, player_hp, current_time, invu
         soul_rect = pygame.Rect(soul_pos[0], soul_pos[1], 20, 20)
         bullet_rect = pygame.Rect(bullet[0] - 10, bullet[1] - 10, 20, 20)
         if soul_rect.colliderect(bullet_rect):
-            if current_time >= invulnerable_until:
+            if feature == "вера" and not invulnerable_until:
+                # Активируем щит
+                invulnerable_until = current_time + 500  # Щит активен на один удар
+                print("Щит активирован! Один удар поглощён.")
+            elif current_time >= invulnerable_until:
                 player_hp -= 5
                 invulnerable_until = current_time + 500  # Неуязвимость на 0.5 секунды
                 shake = True  # Тряска при получении урона
@@ -479,16 +605,16 @@ def attack_minigame(screen):
             line_direction *= -1  # Меняем направление движения
 
         # Отрисовка мини-игры
-        screen.fill(COLOR_BATTLE_BG)
+        screen.fill(design.COLOR_BATTLE_BG)
 
         # Отрисовка окна мини-игры
-        pygame.draw.rect(screen, COLOR_BATTLE_ACCENT, (FIELD_X, FIELD_Y, FIELD_WIDTH, FIELD_HEIGHT), 2)
+        pygame.draw.rect(screen, design.COLOR_BATTLE_ACCENT, (FIELD_X, FIELD_Y, FIELD_WIDTH, FIELD_HEIGHT), 2)
 
         # Отрисовка линии
         pygame.draw.line(screen, RED, (line_x, FIELD_Y), (line_x, FIELD_Y + FIELD_HEIGHT), 3)
 
         # Отрисовка указателя центра
-        pygame.draw.line(screen, COLOR_BATTLE_TEXT, (center_x, FIELD_Y), (center_x, FIELD_Y + FIELD_HEIGHT), 1)
+        pygame.draw.line(screen, design.COLOR_BATTLE_TEXT, (center_x, FIELD_Y), (center_x, FIELD_Y + FIELD_HEIGHT), 1)
 
         pygame.display.flip()
         clock.tick(60)
@@ -497,16 +623,161 @@ def attack_minigame(screen):
 
 def show_end_screen(screen, message):
     if message == "You Win!":
-        bg_color = COLOR_VICTORY_BG
-        text_color = COLOR_VICTORY_TEXT
+        bg_color = design.COLOR_VICTORY_BG
+        text_color = design.COLOR_VICTORY_TEXT
+    elif message == "You Spare the Monster!":
+        bg_color = (255, 255, 0)  # Жёлтый фон для пощады
+        text_color = BLACK
     else:
-        bg_color = COLOR_VICTORY_BG  # Можно установить отдельный цвет для поражения
-        text_color = COLOR_DEFEAT_TEXT
+        bg_color = design.COLOR_DEFEAT_TEXT  # Можно установить отдельный цвет для поражения
+        text_color = WHITE
 
     screen.fill(bg_color)
-    font = FONT_GAME
+    font = design.FONT_GAME
     end_text = font.render(message, True, text_color)
     screen.blit(end_text, ((WINDOW_WIDTH - end_text.get_width()) // 2,
                            (WINDOW_HEIGHT - end_text.get_height()) // 2))
     pygame.display.flip()
     pygame.time.wait(2000)
+
+def act_menu(screen):
+    # Простое меню выбора действия: Насмешка или Поддержка
+    menu_running = True
+    clock = pygame.time.Clock()
+    choice = None
+
+    while menu_running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+                # Определяем области кнопок
+                laugh_button = pygame.Rect(int(WINDOW_WIDTH * 0.3125), int(WINDOW_HEIGHT * 0.5), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0833))
+                support_button = pygame.Rect(int(WINDOW_WIDTH * 0.625), int(WINDOW_HEIGHT * 0.5), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0833))
+
+                if laugh_button.collidepoint(pos):
+                    choice = "насмешка"
+                    menu_running = False
+                elif support_button.collidepoint(pos):
+                    choice = "поддержка"
+                    menu_running = False
+
+        # Отрисовка меню
+        screen.fill(design.COLOR_BATTLE_BG)
+        font = design.FONT_GAME
+
+        # Кнопка "Насмешка"
+        pygame.draw.rect(screen, design.BUTTON_BORDER_COLOR_PYGAME, pygame.Rect(int(WINDOW_WIDTH * 0.3125), int(WINDOW_HEIGHT * 0.5), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0833)), 2)
+        pygame.draw.rect(screen, design.BUTTON_FILL_COLOR_PYGAME, pygame.Rect(int(WINDOW_WIDTH * 0.3125), int(WINDOW_HEIGHT * 0.5), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0833)).inflate(-4, -4))
+        laugh_text = font.render("Насмешка", True, design.BUTTON_TEXT_COLOR_PYGAME)
+        laugh_text_rect = laugh_text.get_rect(center=(int(WINDOW_WIDTH * 0.3125 + (WINDOW_WIDTH * 0.125)/2), int(WINDOW_HEIGHT * 0.5 + (WINDOW_HEIGHT * 0.0833)/2)))
+        screen.blit(laugh_text, laugh_text_rect)
+
+        # Кнопка "Поддержка"
+        pygame.draw.rect(screen, design.BUTTON_BORDER_COLOR_PYGAME, pygame.Rect(int(WINDOW_WIDTH * 0.625), int(WINDOW_HEIGHT * 0.5), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0833)), 2)
+        pygame.draw.rect(screen, design.BUTTON_FILL_COLOR_PYGAME, pygame.Rect(int(WINDOW_WIDTH * 0.625), int(WINDOW_HEIGHT * 0.5), int(WINDOW_WIDTH * 0.125), int(WINDOW_HEIGHT * 0.0833)).inflate(-4, -4))
+        support_text = font.render("Поддержка", True, design.BUTTON_TEXT_COLOR_PYGAME)
+        support_text_rect = support_text.get_rect(center=(int(WINDOW_WIDTH * 0.625 + (WINDOW_WIDTH * 0.125)/2), int(WINDOW_HEIGHT * 0.5 + (WINDOW_HEIGHT * 0.0833)/2)))
+        screen.blit(support_text, support_text_rect)
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    return choice
+
+def weaken_enemy(monster):
+    # Снижение атак монстра (пример: уменьшение урона или частоты атак)
+    # Здесь можно реализовать конкретные изменения в поведении монстра
+    # Например, уменьшим количество атак или урон
+    # Для простоты уменьшим здоровье монстра
+    monster.health -= 10
+    if monster.health < 0:
+        monster.health = 0
+    print(f"Монстр ослаблен! Текущее здоровье: {monster.health}")
+
+def use_item(item, inventory, user):
+    if inventory.get(item, 0) > 0:
+        inventory[item] -= 1
+        if item == "пирог":
+            user['health'] += 20
+            if user['health'] > user['max_health']:
+                user['health'] = user['max_health']  # Максимальное здоровье не превышает начальное
+        elif item == "сэндвич":
+            user['health'] += 10
+            if user['health'] > user['max_health']:
+                user['health'] = user['max_health']
+        elif item == "энергетик":
+            user['health'] += 5
+            if user['health'] > user['max_health']:
+                user['health'] = user['max_health']
+            # Дополнительные эффекты можно добавить здесь
+        print(f"Использован {item}. Осталось: {inventory[item]}")
+    else:
+        print(f"Нет {item} в инвентаре.")
+
+def item_menu(screen, inventory):
+    # Меню инвентаря
+    menu_running = True
+    clock = pygame.time.Clock()
+    selected_item = None
+
+    while menu_running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+                # Определяем области кнопок
+                items = ["пирог", "сэндвич", "энергетик"]
+                for idx, item in enumerate(items):
+                    item_rect = pygame.Rect(int(WINDOW_WIDTH * 0.375), int(WINDOW_HEIGHT * 0.3333) + idx * int(WINDOW_HEIGHT * 0.1167), int(WINDOW_WIDTH * 0.25), int(WINDOW_HEIGHT * 0.0833))
+                    if item_rect.collidepoint(pos) and inventory.get(item, 0) > 0:
+                        selected_item = item
+                        menu_running = False
+                        break
+
+        # Отрисовка меню
+        screen.fill(design.COLOR_BATTLE_BG)
+        font = design.FONT_GAME
+
+        title_text = font.render("Инвентарь", True, design.COLOR_BATTLE_TEXT)
+        screen.blit(title_text, (int(WINDOW_WIDTH * 0.5 - title_text.get_width() / 2), int(WINDOW_HEIGHT * 0.1667)))
+
+        items = ["пирог", "сэндвич", "энергетик"]
+        for idx, item in enumerate(items):
+            item_rect = pygame.Rect(int(WINDOW_WIDTH * 0.375), int(WINDOW_HEIGHT * 0.3333) + idx * int(WINDOW_HEIGHT * 0.1167), int(WINDOW_WIDTH * 0.25), int(WINDOW_HEIGHT * 0.0833))
+            pygame.draw.rect(screen, design.BUTTON_BORDER_COLOR_PYGAME, item_rect, 2)
+            pygame.draw.rect(screen, design.BUTTON_FILL_COLOR_PYGAME, item_rect.inflate(-4, -4))
+            item_text = font.render(f"{item} ({inventory.get(item,0)})", True, design.BUTTON_TEXT_COLOR_PYGAME)
+            item_text_rect = item_text.get_rect(center=item_rect.center)
+            screen.blit(item_text, item_text_rect)
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    return selected_item
+
+def draw_monster(screen, shape, x, y):
+    """
+    Рисует монстра на основе его кодовой матрицы.
+
+    :param screen: Поверхность Pygame для рисования.
+    :param shape: Список строк, представляющих пиксели монстра.
+    :param x: Координата X центра монстра.
+    :param y: Координата Y центра монстра.
+    """
+    pixel_size = 5  # Размер одного пикселя монстра
+    rows = len(shape)
+    cols = len(shape[0])
+
+    for row_idx, row in enumerate(shape):
+        for col_idx, pixel in enumerate(row):
+            if pixel == '1':
+                pygame.draw.rect(
+                    screen,
+                    WHITE,  # Цвет монстра можно изменить при необходимости
+                    (x + (col_idx - cols // 2) * pixel_size, y + row_idx * pixel_size, pixel_size, pixel_size)
+                )
